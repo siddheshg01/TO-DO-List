@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TaskQuest — Gamified To-Do Dashboard</title>
+  <meta name="description" content="A beautiful gamified to-do list dashboard with points, streaks, and progress tracking." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── CSS Variables ─────────────────────────────────────────── */
+    :root {
+      --bg: #f0f4ff;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f8faff;
+      --border: #e2e8f0;
+      --text-primary: #1a202c;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-light: #dbeafe;
+      --success: #10b981;
+      --success-light: rgba(16,185,129,0.12);
+      --danger: #ef4444;
+      --danger-light: #fee2e2;
+      --purple: #8b5cf6;
+      --purple-light: rgba(139,92,246,0.12);
+      --gradient: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.07);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+      --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+      --r: 16px;
+      --rs: 10px;
+      --t: 0.2s ease;
+    }
+    [data-theme="dark"] {
+      --bg: #0f1117;
+      --bg-card: #1a1d27;
+      --bg-card-hover: #1f2333;
+      --border: #2a2d3e;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #60a5fa;
+      --accent-hover: #3b82f6;
+      --accent-light: rgba(96,165,250,0.12);
+      --success: #34d399;
+      --success-light: rgba(52,211,153,0.12);
+      --danger: #f87171;
+      --danger-light: rgba(248,113,113,0.12);
+      --purple: #a78bfa;
+      --purple-light: rgba(167,139,250,0.12);
+      --gradient: linear-gradient(135deg, #3b82f6, #a78bfa);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.3);
+      --shadow-lg: 0 10px 40px rgba(0,0,0,0.4);
+    }
+
+    /* ── Reset ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-family: 'Inter', -apple-system, sans-serif; scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    /* ── Animations ────────────────────────────────────────────── */
+    @keyframes slideInDown {
+      from { opacity: 0; transform: translateY(-20px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes fadeScaleOut {
+      from { opacity: 1; transform: scale(1); max-height: 80px; margin-bottom: 8px; padding: 13px 10px; }
+      to   { opacity: 0; transform: scale(0.94); max-height: 0;  margin-bottom: 0;  padding: 0; }
+    }
+    @keyframes popScore {
+      0%   { transform: scale(1); }
+      45%  { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateX(80px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes toastOut {
+      from { opacity: 1; transform: translateX(0); }
+      to   { opacity: 0; transform: translateX(80px); }
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-7px); }
+    }
+
+    .task-enter { animation: slideInDown 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+    .task-exit  { animation: fadeScaleOut 0.3s ease forwards; overflow: hidden; pointer-events: none; }
+
+    /* ── Header ────────────────────────────────────────────────── */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 32px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      position: sticky; top: 0; z-index: 100;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-icon {
+      width: 38px; height: 38px; border-radius: 11px;
+      background: var(--gradient);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: #fff;
+      box-shadow: 0 4px 14px rgba(59,130,246,0.45);
+    }
+    .logo-text { display: flex; flex-direction: column; }
+    .logo-name { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.3px; }
+    .logo-sub  { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 500; }
+    .theme-btn {
+      width: 42px; height: 42px; border: 1px solid var(--border);
+      background: var(--bg-card); border-radius: 12px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--text-secondary);
+      transition: all var(--t);
+    }
+    .theme-btn:hover { background: var(--accent-light); border-color: var(--accent); transform: rotate(18deg); }
+
+    /* ── Dashboard Grid ────────────────────────────────────────── */
+    .dashboard {
+      max-width: 1200px; margin: 0 auto; padding: 28px 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    /* ── Card ──────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      box-shadow: var(--shadow-md);
+      transition: background 0.3s, border-color 0.3s, box-shadow var(--t);
+    }
+    .card:hover { box-shadow: var(--shadow-lg); }
+    .card-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ch-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+    }
+    .ch-icon.blue   { background: var(--accent-light); }
+    .ch-icon.green  { background: var(--success-light); }
+    .ch-icon.purple { background: var(--purple-light); }
+    .card-title { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-secondary); }
+
+    /* ── Points Card ───────────────────────────────────────────── */
+    #points-card {
+      grid-column: 1 / -1;
+      background: var(--gradient) !important;
+      border: none !important;
+      padding: 28px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      overflow: hidden; position: relative;
+    }
+    #points-card::before {
+      content:''; position:absolute; top:-40%; right:-5%;
+      width:260px; height:260px; border-radius:50%; background:rgba(255,255,255,0.07);
+    }
+    #points-card::after {
+      content:''; position:absolute; bottom:-60%; right:15%;
+      width:200px; height:200px; border-radius:50%; background:rgba(255,255,255,0.05);
+    }
+    .pts-info { position:relative; z-index:1; }
+    .pts-label { font-size:0.75rem; font-weight:600; color:rgba(255,255,255,0.75); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:6px; }
+    #pts-value {
+      font-size: 3.5rem; font-weight: 800; color: #fff;
+      line-height: 1; letter-spacing: -2px;
+      transition: transform 0.1s;
+    }
+    #pts-value.pop { animation: popScore 0.4s ease; }
+    .pts-sub { font-size: 0.76rem; color: rgba(255,255,255,0.6); margin-top: 8px; }
+    .pts-badges { display: flex; gap: 14px; position: relative; z-index: 1; flex-wrap: wrap; }
+    .pts-badge {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 12px; padding: 10px 18px; text-align: center; min-width: 82px;
+      backdrop-filter: blur(10px);
+    }
+    .pts-badge-val { display:block; font-size:1.4rem; font-weight:700; color:#fff; }
+    .pts-badge-lbl { font-size:0.66rem; color:rgba(255,255,255,0.7); text-transform:uppercase; letter-spacing:0.05em; }
+
+    /* ── Add Task Card ─────────────────────────────────────────── */
+    #add-card { padding: 20px; }
+    .add-form { display: flex; gap: 10px; }
+    #task-input {
+      flex: 1; padding: 12px 16px;
+      border: 2px solid var(--border); border-radius: var(--rs);
+      background: var(--bg); color: var(--text-primary);
+      font-size: 0.9rem; font-family: inherit; outline: none;
+      transition: all var(--t);
+    }
+    #task-input:focus { border-color: var(--accent); background: var(--bg-card); box-shadow: 0 0 0 4px var(--accent-light); }
+    #task-input::placeholder { color: var(--text-muted); }
+    .btn-add {
+      padding: 12px 20px; background: var(--accent); color: #fff;
+      border: none; border-radius: var(--rs);
+      font-size: 0.875rem; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; white-space: nowrap;
+      transition: all var(--t); font-family: inherit;
+    }
+    .btn-add:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(59,130,246,0.4); }
+    .btn-add:active { transform: translateY(0); }
+    .pts-hint { margin-top: 10px; font-size: 0.74rem; color: var(--text-muted); }
+
+    /* ── Progress Card ─────────────────────────────────────────── */
+    #progress-card { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .prog-row { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 6px; }
+    .prog-pct { font-weight: 700; color: var(--accent); }
+    .prog-bar-bg { width: 100%; height: 8px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .prog-bar { height: 100%; background: var(--gradient); border-radius: 99px; transition: width 0.5s ease; }
+    .prog-stats { display: flex; flex-direction: column; gap: 8px; }
+    .prog-stat { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-secondary); }
+    .prog-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── Task List Card ────────────────────────────────────────── */
+    #task-card { grid-column: 1 / -1; }
+    .task-list-head-right { margin-left: auto; font-size: 0.76rem; color: var(--text-muted); }
+    #task-list {
+      padding: 12px 16px;
+      max-height: 360px; overflow-y: auto;
+    }
+    #task-list::-webkit-scrollbar { width: 5px; }
+    #task-list::-webkit-scrollbar-track { background: transparent; }
+    #task-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+    .empty-state { text-align: center; padding: 44px 20px; color: var(--text-muted); }
+    .empty-icon { font-size: 2.8rem; margin-bottom: 10px; animation: float 3s ease-in-out infinite; display: block; }
+    .empty-title { font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+    .task-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 13px 10px; border-radius: var(--rs); margin-bottom: 8px;
+      border: 1px solid var(--border); background: var(--bg-card);
+      transition: background var(--t), border-color var(--t), box-shadow var(--t);
+    }
+    .task-item:last-child { margin-bottom: 0; }
+    .task-item:hover { background: var(--bg-card-hover); border-color: var(--accent); box-shadow: var(--shadow-sm); }
+    .task-cb {
+      width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 7px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; background: transparent;
+      transition: all var(--t); color: transparent; font-size: 13px; font-weight: 700;
+    }
+    .task-cb:hover { border-color: var(--accent); background: var(--accent-light); }
+    .task-cb.done { background: var(--success); border-color: var(--success); color: #fff; }
+    .task-text { flex: 1; font-size: 0.9rem; word-break: break-word; transition: all var(--t); }
+    .task-text.done { text-decoration: line-through; color: var(--text-muted); }
+    .done-badge {
+      font-size: 0.66rem; font-weight: 600; padding: 2px 9px; border-radius: 99px;
+      background: var(--success-light); color: var(--success); white-space: nowrap;
+    }
+    .btn-del {
+      width: 30px; height: 30px; border: 1px solid transparent; border-radius: 8px;
+      background: transparent; color: var(--text-muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--t); flex-shrink: 0; font-size: 15px;
+    }
+    .btn-del:hover { background: var(--danger-light); border-color: var(--danger); color: var(--danger); }
+
+    /* ── Chart Card ────────────────────────────────────────────── */
+    #chart-card { grid-column: 1 / -1; }
+    #chart-wrap { padding: 16px 20px 22px; }
+    #myChart { max-height: 220px; }
+
+    /* ── Toast Notifications ───────────────────────────────────── */
+    #toast-container {
+      position: fixed; bottom: 24px; right: 24px;
+      z-index: 999; display: flex; flex-direction: column; gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 18px; border-radius: 12px;
+      font-size: 0.84rem; font-weight: 600;
+      box-shadow: var(--shadow-lg);
+      animation: toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+      min-width: 210px;
+    }
+    .toast.out { animation: toastOut 0.25s ease forwards; }
+    .toast.pos { background: var(--success); color: #fff; }
+    .toast.neg { background: var(--danger);  color: #fff; }
+
+    /* ── Responsive ────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .dashboard { grid-template-columns: 1fr; padding: 16px; }
+      #points-card { flex-direction: column; align-items: flex-start; gap: 20px; }
+      #pts-value { font-size: 2.6rem; }
+      .header { padding: 14px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────── -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">✓</div>
+    <div class="logo-text">
+      <span class="logo-name">TaskQuest</span>
+      <span class="logo-sub">Gamified Dashboard</span>
+    </div>
+  </div>
+  <button class="theme-btn" id="theme-btn" title="Toggle dark / light mode">🌙</button>
+</header>
+
+<!-- ── Dashboard ───────────────────────────────────────────────── -->
+<main class="dashboard">
+
+  <!-- Points Card -->
+  <div class="card" id="points-card">
+    <div class="pts-info">
+      <div class="pts-label">⚡ Total Points</div>
+      <div id="pts-value">0</div>
+      <div class="pts-sub">Complete tasks to earn more XP</div>
+    </div>
+    <div class="pts-badges">
+      <div class="pts-badge">
+        <span class="pts-badge-val" id="badge-total">0</span>
+        <span class="pts-badge-lbl">Total</span>
+      </div>
+      <div class="pts-badge">
+        <span class="pts-badge-val" id="badge-done">0</span>
+        <span class="pts-badge-lbl">Done</span>
+      </div>
+      <div class="pts-badge">
+        <span class="pts-badge-val" id="badge-pending">0</span>
+        <span class="pts-badge-lbl">Pending</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Task Card -->
+  <div class="card" id="add-card">
+    <div class="card-head">
+      <div class="ch-icon blue">➕</div>
+      <span class="card-title">Add New Task</span>
+    </div>
+    <div style="padding:16px">
+      <div class="add-form">
+        <input id="task-input" type="text" placeholder="What needs to be done? (+5 pts)" maxlength="120" autocomplete="off" />
+        <button class="btn-add" id="add-btn">➕ Add</button>
+      </div>
+      <p class="pts-hint">⭐ +5 add &nbsp;·&nbsp; +20 complete &nbsp;·&nbsp; −10 delete incomplete</p>
+    </div>
+  </div>
+
+  <!-- Progress Card -->
+  <div class="card" id="progress-card">
+    <div class="card-head">
+      <div class="ch-icon purple">🏆</div>
+      <span class="card-title">Progress</span>
+    </div>
+    <div style="padding:16px; display:flex; flex-direction:column; gap:14px;">
+      <div>
+        <div class="prog-row">
+          <span style="font-size:.8rem;color:var(--text-secondary)">Completion Rate</span>
+          <span class="prog-pct" id="progress-pct">0%</span>
+        </div>
+        <div class="prog-bar-bg"><div class="prog-bar" id="progress-bar" style="width:0%"></div></div>
+      </div>
+      <div class="prog-stats">
+        <div class="prog-stat">
+          <div class="prog-dot" style="background:var(--accent)"></div>
+          Tasks completed today: <strong id="today-count" style="color:var(--text-primary);margin-left:4px">0</strong>
+        </div>
+        <div class="prog-stat">
+          <div class="prog-dot" style="background:var(--success)"></div>
+          7-day total: <strong id="week-count" style="color:var(--text-primary);margin-left:4px">0</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task List Card -->
+  <div class="card" id="task-card">
+    <div class="card-head">
+      <div class="ch-icon green">✅</div>
+      <span class="card-title">Tasks</span>
+      <span class="task-list-head-right" id="task-count-label">0 / 0 done</span>
+    </div>
+    <div id="task-list">
+      <div class="empty-state" id="empty-state">
+        <span class="empty-icon">📋</span>
+        <div class="empty-title">No tasks yet!</div>
+        <div style="font-size:.82rem">Add your first task to start earning points</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart Card -->
+  <div class="card" id="chart-card">
+    <div class="card-head">
+      <div class="ch-icon blue">📊</div>
+      <span class="card-title">7-Day Completion Trend</span>
+    </div>
+    <div id="chart-wrap">
+      <canvas id="myChart"></canvas>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── Toast Container ─────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<script>
+// ── Storage helpers ──────────────────────────────────────────────
+const LS = {
+  get: (k, def) => { try { const v = localStorage.getItem(k); return v !== null ? JSON.parse(v) : def; } catch { return def; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+// ── State ────────────────────────────────────────────────────────
+let tasks  = LS.get('tq_tasks',  []);
+let points = LS.get('tq_points', 0);
+let theme  = LS.get('tq_theme',  'light');
+
+// ── Chart instance ───────────────────────────────────────────────
+let chart = null;
+
+// ── Utils ────────────────────────────────────────────────────────
+const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const toDateStr = ts => {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+const todayStr = () => toDateStr(Date.now());
+
+function getLast7Days() {
+  const names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return Array.from({length: 7}, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return { day: names[d.getDay()], date: toDateStr(d.getTime()), count: 0 };
+  });
+}
+
+function save() {
+  LS.set('tq_tasks', tasks);
+  LS.set('tq_points', points);
+}
+
+// ── Toast ────────────────────────────────────────────────────────
+function showToast(msg, positive = true) {
+  const tc = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${positive ? 'pos' : 'neg'}`;
+  el.textContent = msg;
+  tc.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 280);
+  }, 2400);
+}
+
+// ── Animate points ───────────────────────────────────────────────
+function animatePts() {
+  const el = document.getElementById('pts-value');
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
+}
+
+// ── Render ───────────────────────────────────────────────────────
+function render() {
+  const done    = tasks.filter(t => t.done);
+  const pending = tasks.filter(t => !t.done);
+  const pct     = tasks.length ? Math.round((done.length / tasks.length) * 100) : 0;
+  const today   = done.filter(t => t.doneAt && toDateStr(t.doneAt) === todayStr()).length;
+  const days    = getLast7Days();
+  done.forEach(t => { if (t.doneAt) { const slot = days.find(d => d.date === toDateStr(t.doneAt)); if (slot) slot.count++; } });
+  const weekTotal = days.reduce((s, d) => s + d.count, 0);
+
+  // Points
+  document.getElementById('pts-value').textContent = points.toLocaleString();
+  document.getElementById('badge-total').textContent   = tasks.length;
+  document.getElementById('badge-done').textContent    = done.length;
+  document.getElementById('badge-pending').textContent = pending.length;
+
+  // Progress
+  document.getElementById('progress-pct').textContent = pct + '%';
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('today-count').textContent = today;
+  document.getElementById('week-count').textContent  = weekTotal;
+  document.getElementById('task-count-label').textContent = `${done.length} / ${tasks.length} done`;
+
+  // Task list
+  renderTasks();
+
+  // Chart
+  updateChart(days);
+}
+
+function renderTasks() {
+  const list = document.getElementById('task-list');
+  const empty = document.getElementById('empty-state');
+
+  // Remove existing task items (not the empty state)
+  Array.from(list.querySelectorAll('.task-item')).forEach(el => el.remove());
+
+  if (tasks.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tasks.forEach(task => {
+    const item = document.createElement('div');
+    item.className = 'task-item task-enter';
+    item.dataset.id = task.id;
+    item.innerHTML = `
+      <button class="task-cb ${task.done ? 'done' : ''}" data-id="${task.id}" title="${task.done ? 'Uncheck' : 'Complete'}">
+        ${task.done ? '✓' : ''}
+      </button>
+      <span class="task-text ${task.done ? 'done' : ''}">${escHtml(task.text)}</span>
+      ${task.done ? '<span class="done-badge">Done</span>' : ''}
+      <button class="btn-del" data-id="${task.id}" title="Delete task">🗑</button>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Chart ────────────────────────────────────────────────────────
+function buildChart(days) {
+  const ctx  = document.getElementById('myChart').getContext('2d');
+  const isDark = theme === 'dark';
+  const accent = isDark ? '#60a5fa' : '#3b82f6';
+  const gridC  = isDark ? '#2a2d3e' : '#e2e8f0';
+  const textC  = isDark ? '#64748b' : '#94a3b8';
+
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: days.map(d => d.day),
+      datasets: [{
+        label: 'Completed',
+        data: days.map(d => d.count),
+        borderColor: accent,
+        backgroundColor: isDark ? 'rgba(96,165,250,0.12)' : 'rgba(59,130,246,0.1)',
+        borderWidth: 2.5,
+        pointBackgroundColor: accent,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        tension: 0.4,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: isDark ? '#1a1d27' : '#ffffff',
+          borderColor: isDark ? '#2a2d3e' : '#e2e8f0',
+          borderWidth: 1,
+          titleColor: isDark ? '#e2e8f0' : '#1a202c',
+          bodyColor: accent,
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y} task${ctx.parsed.y !== 1 ? 's' : ''} completed`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: gridC }, ticks: { color: textC, font: { family: 'Inter', size: 11 } } },
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1, color: textC, font: { family: 'Inter', size: 11 } },
+          grid: { color: gridC }
+        }
+      }
+    }
+  });
+}
+
+function updateChart(days) {
+  if (!chart) { buildChart(days); return; }
+  const isDark = theme === 'dark';
+  const accent = isDark ? '#60a5fa' : '#3b82f6';
+  chart.data.labels = days.map(d => d.day);
+  chart.data.datasets[0].data   = days.map(d => d.count);
+  chart.data.datasets[0].borderColor = accent;
+  chart.data.datasets[0].backgroundColor = isDark ? 'rgba(96,165,250,0.12)' : 'rgba(59,130,246,0.1)';
+  chart.data.datasets[0].pointBackgroundColor = accent;
+  chart.options.plugins.tooltip.backgroundColor = isDark ? '#1a1d27' : '#ffffff';
+  chart.options.plugins.tooltip.borderColor = isDark ? '#2a2d3e' : '#e2e8f0';
+  chart.options.plugins.tooltip.titleColor  = isDark ? '#e2e8f0' : '#1a202c';
+  chart.options.plugins.tooltip.bodyColor   = accent;
+  const gc = isDark ? '#2a2d3e' : '#e2e8f0';
+  const tc = isDark ? '#64748b' : '#94a3b8';
+  chart.options.scales.x.grid.color = gc;
+  chart.options.scales.y.grid.color = gc;
+  chart.options.scales.x.ticks.color = tc;
+  chart.options.scales.y.ticks.color = tc;
+  chart.update('active');
+}
+
+// ── Actions ──────────────────────────────────────────────────────
+function addTask() {
+  const input = document.getElementById('task-input');
+  const text  = input.value.trim();
+  if (!text) { input.focus(); return; }
+  tasks.unshift({ id: uid(), text, done: false, createdAt: Date.now() });
+  points += 5;
+  save();
+  render();
+  animatePts();
+  showToast('+5 pts — Task added! 🎯', true);
+  input.value = '';
+  input.focus();
+}
+
+function completeTask(id) {
+  const t = tasks.find(t => t.id === id);
+  if (!t) return;
+  if (t.done) {
+    t.done = false; t.doneAt = undefined;
+    points = Math.max(0, points - 20);
+    showToast('-20 pts — Task reopened', false);
+  } else {
+    t.done = true; t.doneAt = Date.now();
+    points += 20;
+    showToast('+20 pts — Task complete! 🏆', true);
+  }
+  save(); render(); animatePts();
+}
+
+function deleteTask(id) {
+  const t = tasks.find(t => t.id === id);
+  if (!t) return;
+  const item = document.querySelector(`.task-item[data-id="${id}"]`);
+  if (item) {
+    item.classList.remove('task-enter');
+    item.classList.add('task-exit');
+    setTimeout(() => {
+      tasks = tasks.filter(t => t.id !== id);
+      if (!t.done) {
+        points = Math.max(0, points - 10);
+        showToast('-10 pts — Incomplete task deleted 🗑', false);
+        animatePts();
+      } else {
+        showToast('Task removed', false);
+      }
+      save(); render();
+    }, 300);
+  }
+}
+
+// ── Theme ────────────────────────────────────────────────────────
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-btn').textContent = theme === 'light' ? '🌙' : '☀️';
+  LS.set('tq_theme', theme);
+  // Rebuild chart colours immediately
+  if (chart) {
+    const days = getLast7Days();
+    tasks.filter(t => t.done && t.doneAt).forEach(t => {
+      const slot = days.find(d => d.date === toDateStr(t.doneAt));
+      if (slot) slot.count++;
+    });
+    updateChart(days);
+  }
+}
+
+// ── Event Listeners ──────────────────────────────────────────────
+document.getElementById('add-btn').addEventListener('click', addTask);
+document.getElementById('task-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addTask();
+});
+
+document.getElementById('task-list').addEventListener('click', e => {
+  const cb  = e.target.closest('.task-cb');
+  const del = e.target.closest('.btn-del');
+  if (cb)  completeTask(cb.dataset.id);
+  if (del) deleteTask(del.dataset.id);
+});
+
+document.getElementById('theme-btn').addEventListener('click', () => {
+  theme = theme === 'light' ? 'dark' : 'light';
+  applyTheme();
+});
+
+// ── Init ─────────────────────────────────────────────────────────
+applyTheme();
+render();
+</script>
+</body>
+</html>
